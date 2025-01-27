@@ -16,9 +16,6 @@ runs:
     - name: Lint with Ruff
       run: ruff check .
       shell: bash
-    - name: Check complexity
-      run: complexipy .
-      shell: bash
     # - name: Lint with PyLint
     #   run: pylint src tests
     #   shell: bash

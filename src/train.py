@@ -33,29 +33,23 @@ class Trainer:
     ) -> None:
         """
         Constructor of the class.
-
         Parameters
         ----------
         model : Model to train.
         """
-
         self.model = model
-
         self.optim = OPTIM(model.parameters(), LR)
         self.criterion = bayesian_loss
-
         self.lr_scheduler = (
             ReduceLROnPlateau(self.optim, factor=0.1, patience=5)
             if SCHEDULE_LR
             else None
         )
         self.early_stopping = EARLY_STOPPING
-
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )  # to use GPU if possible
         self.model.to(self.device)
-
         # Lists to store training metrics
         self.metrics: dict[str, dict[str, list[float]]] = {
             "train": {
@@ -75,19 +69,16 @@ class Trainer:
     def _make_train(self, x: torch.Tensor, y: torch.Tensor) -> None:
         """
         Makes the training of an epoch.
-
         Parameters
         ----------
         x : Training set.
         y : Labels of the training set.
         """
-
         self.model.train()
         idx = np.random.permutation(x.shape[0])
         num_batches = x.shape[0] // BATCH_SIZE
         total_entropy_loss = 0.0
         total_kl_loss = 0.0
-
         for i in range(num_batches):
             self.optim.zero_grad()
             idx_batch = idx[i * BATCH_SIZE : (i + 1) * BATCH_SIZE]
@@ -111,7 +102,6 @@ class Trainer:
             self.optim.step()
             total_entropy_loss += prediction_loss.item()
             total_kl_loss += kl_loss.item()
-
         total_loss = (total_entropy_loss + total_kl_loss) / num_batches
         self.metrics["train"]["loss"].append(total_loss)
         self.metrics["train"]["cross_entropy"].append(total_entropy_loss / num_batches)
@@ -122,19 +112,16 @@ class Trainer:
     def _make_validation(self, x: torch.Tensor, y: torch.Tensor) -> None:
         """
         Makes the validation of an epoch.
-
         Parameters
         ----------
         x : Validation set.
         y : Labels of the validation set.
         """
-
         self.model.eval()
         idx = np.random.permutation(x.shape[0])
         num_batches = x.shape[0] // BATCH_SIZE
         total_entropy_loss = 0.0
         total_kl_loss = 0.0
-
         with torch.no_grad():
             for i in range(num_batches):
                 idx_batch = idx[i * BATCH_SIZE : (i + 1) * BATCH_SIZE]
@@ -153,7 +140,6 @@ class Trainer:
                 )
                 total_entropy_loss += prediction_loss.item()
                 total_kl_loss += kl_loss.item()
-
         total_loss = (total_entropy_loss + total_kl_loss) / num_batches
         self.metrics["valid"]["loss"].append(total_loss)
         self.metrics["valid"]["cross_entropy"].append(total_entropy_loss / num_batches)
@@ -162,27 +148,23 @@ class Trainer:
     def _save_train_metrics(self, y: torch.Tensor, y_pred: torch.Tensor) -> None:
         """
         Saves the training metrics of an epoch.
-
         Parameters
         ----------
         y       : Actual labels.
         y_pred  : Labels predicted by the model.
         y_probs : Probabilities predicted by the model.
         """
-
         self.metrics["train"]["accuracy"].append(accuracy_score(y, y_pred))
 
     def _save_validation_metrics(self, y: torch.Tensor, y_pred: torch.Tensor) -> None:
         """
         Saves the training metrics of an epoch.
-
         Parameters
         ----------
         y       : Actual labels.
         y_pred  : Labels predicted by the model.
         y_probs : Probabilities predicted by the model.
         """
-
         self.metrics["valid"]["accuracy"].append(accuracy_score(y, y_pred))
 
     def fit(
@@ -195,7 +177,6 @@ class Trainer:
     ) -> None:
         """
         Training of the network.
-
         Parameters
         ----------
         x_train     : Tensor in which each row represents an instance of the train set.
@@ -205,25 +186,20 @@ class Trainer:
         epochs      : Number of epochs to train.
         print_every : Number of epochs to print on screen the situation of the training.
         """
-
         print_every = epochs // 10 if PRINT_EVERY is None else PRINT_EVERY
-
         for epoch in range(1, epochs + 1):
             # Train and validation
             self._make_train(x_train, y_train)
             self._make_validation(x_valid, y_valid)
-
             # Save metrics and print on screen
             y_pred = self.model.predict(x_train)
             self._save_train_metrics(y_train, y_pred)
             y_pred = self.model.predict(x_valid)
             self._save_validation_metrics(y_valid, y_pred)
-
             if epoch % print_every == 0 or epoch == 1:
                 print(f"\nEpoch {epoch}\n")
                 print(f"Training loss: {self.metrics["train"]["loss"][-1]:.3f}")
                 print(f"Validation loss: {self.metrics["valid"]["loss"][-1]:.3f}")
-
             # Early stopping
             self.early_stopping(self.metrics["valid"]["loss"][-1], self.model)
             if self.early_stopping.early_stop:
@@ -232,14 +208,12 @@ class Trainer:
                     torch.load(self.early_stopping.path, weights_only=False)
                 )
                 break
-
         torch.save(self.model.state_dict(), self.early_stopping.path)
 
     def show_training(self) -> None:
         """
         Shows the evolution of the metrics during the training.
         """
-
         fig, axs = plt.subplots(1, 2, figsize=(14, 6))
         epochs = len(self.metrics["train"]["loss"])
         x = range(1, epochs + 1)
@@ -272,16 +246,13 @@ class Trainer:
     def test(self, x_test: torch.Tensor, y_test: torch.Tensor) -> float:
         """
         Performs a test with the trained model.
-
         Parameters
         ----------
         x_test : Instances of the test.
         y_test : Labels of the test.
-
         Returns
         -------
         Accuracy in the test.
         """
-
         self.model.eval()
         return accuracy_score(y_test, self.model.predict(x_test))
