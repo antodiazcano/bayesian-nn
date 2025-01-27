@@ -3,6 +3,7 @@ Script for some utilities.
 """
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 
 from src.bnn import BayesianLinear
@@ -48,3 +49,55 @@ def bayesian_loss(
     kl_loss /= len(bayesian_layers)
 
     return beta * kl_loss, prediction_loss
+
+
+class EarlyStopping:
+    """
+    Class to perform early stopping.
+    """
+
+    def __init__(self, patience: int, path: str) -> None:
+        """
+        Constructor of the class.
+
+        Parameters
+        ----------
+        patience : Epochs allowed without improving validation loss.
+        path     : Path to save model parameters.
+        """
+
+        self.patience = patience
+        self.counter = 0  # to count epochs without improvement
+        self.best_score = torch.inf  # best loss achieved
+        self.early_stop = False  # flag to know when to stop
+        self.path = path
+
+    def __call__(self, val_loss: float, model: nn.Module) -> None:
+        """
+        Call the class.
+
+        Parameters
+        ----------
+        val_loss : New value of the loss.
+        model    : Model to which the early stopping is applied.
+        """
+
+        if val_loss >= self.best_score:  # we do not improve
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:  # we improve
+            self.best_score = val_loss
+            self.save_weights(model)
+            self.counter = 0
+
+    def save_weights(self, model: nn.Module) -> None:
+        """
+        Saves the weights of the model.
+
+        Parameters
+        ----------
+        model : Model to train.
+        """
+
+        torch.save(model.state_dict(), self.path)

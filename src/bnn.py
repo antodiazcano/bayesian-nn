@@ -123,41 +123,41 @@ class BayesianNN(nn.Module):
 
         return self.fc(x)
 
-    def predict(
-        self, x: torch.Tensor, n_samples: int = 100, save_fig: bool = False
+    def predict_proba(
+        self, x: torch.Tensor, n_samples: int = 10, save_fig: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Obtains the mean and std of the predictions of the network.
+        Obtains the mean and std of the predictions of the network for each class.
 
         Parameters
         ----------
-        x         : Input tensor. Dimensions: [1, in_dim]. Note that it is for a
-                    singular element.
+        x         : Input tensor. Dimensions: [batch, in_dim].
         n_samples : Number of predictions to generate.
         save_fig  : True to save a figure of the distributions and False otherwise.
 
         Returns
         -------
-        Mean and std of the predictions.
+        Mean and std of the predictions. Dimensions: [batch, n_classes], [batch,
+        n_classes].
         """
 
         self.eval()
         n_classes = self.fc[-1].out_dim
         with torch.no_grad():
-            preds = torch.zeros(n_samples, n_classes)
+            preds = torch.zeros(x.shape[0], n_samples, n_classes)
             # Note that we have to do a loop instead of using parallelization in order
             # for the weights of the network to be sampled differently.
             for i in range(n_samples):
                 if self.out_dim == 1:
-                    preds[i, :] = F.sigmoid(self.forward(x)).squeeze(0)
+                    preds[:, i, :] = F.sigmoid(self.forward(x))
                 else:
-                    preds[i, :] = F.softmax(self.forward(x), dim=-1).squeeze(0)
+                    preds[:, i, :] = F.softmax(self.forward(x), dim=-1)
 
         if save_fig:
             fig, axs = plt.subplots(1, 2, figsize=(16, 8))
 
             for i in range(n_classes):
-                y_pred = preds[:, i]
+                y_pred = preds[:, :, i].flatten()
                 if isinstance(axs, np.ndarray):  # to pass mypy
                     label = "Class 1" if self.out_dim == 1 else f"Class {i}"
                     axs[0].scatter([i] * len(y_pred), y_pred, alpha=0.1, label=label)
@@ -176,7 +176,23 @@ class BayesianNN(nn.Module):
             fig.savefig("images/histogram_predictions.png")
             plt.close(fig)
 
-        return torch.mean(preds, dim=0), torch.std(preds, 0)
+        return torch.mean(preds, dim=1), torch.std(preds, dim=1)
+
+    def predict(self, x: torch.Tensor, n_samples: int = 10) -> torch.Tensor:
+        """
+        Obtains the predictions of the network.
+
+        Parameters
+        ----------
+        x         : Input tensor. Dimensions: [batch, in_dim].
+        n_samples : Number of predictions to generate.
+
+        Returns
+        -------
+        Prediction. Dimensions: [batch].
+        """
+
+        return torch.argmax(self.predict_proba(x, n_samples)[0], dim=1)
 
     def explore_weights(self) -> None:
         """

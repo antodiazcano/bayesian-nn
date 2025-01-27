@@ -2,11 +2,13 @@
 Test for the utils script.
 """
 
+import os
 import torch
+from torch import nn
 import torch.nn.functional as F
 
 from src.bnn import BayesianLinear
-from src.utils import bayesian_loss
+from src.utils import bayesian_loss, EarlyStopping
 
 
 def test_bayesian_loss() -> None:
@@ -33,3 +35,73 @@ def test_bayesian_loss() -> None:
     assert torch.isclose(
         prediction_loss, F.cross_entropy(y_pred, y_true)
     ), "Loss must be the same as the Cross Entropy"
+
+
+def test_improved_loss() -> None:
+    """
+    Test to check the correct work when the loss improves.
+    """
+
+    e_s = EarlyStopping(patience=10, path="tests/weights.pt")
+    simple_model = nn.Linear(10, 1)
+
+    val_loss = 0.5
+    e_s(val_loss, simple_model)
+
+    assert e_s.best_score == val_loss
+    assert e_s.counter == 0
+    assert not e_s.early_stop
+
+
+def test_no_improvement() -> None:
+    """
+    Test to check the correct work when the loss does not improve.
+    """
+
+    e_s = EarlyStopping(patience=10, path="weights/test_weights.pt")
+    simple_model = nn.Linear(10, 1)
+
+    e_s.best_score = 0.5
+    val_loss = 0.6
+    e_s(val_loss, simple_model)
+
+    assert e_s.counter == 1
+    assert not e_s.early_stop
+
+
+def test_early_stop_triggered() -> None:
+    """
+    Test for when the early stopping has to be activated.
+    """
+
+    e_s = EarlyStopping(patience=10, path="weights/test_weights.pt")
+    simple_model = nn.Linear(10, 1)
+
+    e_s.best_score = 0.5
+    val_loss = 0.6
+
+    for _ in range(e_s.patience):
+        e_s(val_loss, simple_model)
+
+    assert e_s.counter == e_s.patience
+    assert e_s.early_stop
+
+
+def test_save_weights() -> None:
+    """
+    Test for the correct storage of weights.
+    """
+
+    path = "weights/test_weights.pt"
+    e_s = EarlyStopping(patience=10, path=path)
+    simple_model = nn.Linear(10, 1)
+
+    e_s.save_weights(simple_model)
+    assert os.path.exists(path)
+
+    loaded_model = nn.Linear(10, 1)
+    loaded_model.load_state_dict(torch.load(path, weights_only=True))
+    assert all(
+        torch.equal(p1, p2)
+        for p1, p2 in zip(simple_model.parameters(), loaded_model.parameters())
+    )

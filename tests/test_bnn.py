@@ -44,20 +44,23 @@ def test_predictions() -> None:
     Test for the predictions of a network.
     """
 
-    x = torch.randn([1, 5])
+    in_dim = 5
+    x = torch.randn([10, in_dim])
 
     for out_dim in [1, 3]:
-        bnn = BayesianNN(5, out_dim)
-        mean_prediction, std_prediction = bnn.predict(x, save_fig=True)
+        bnn = BayesianNN(in_dim, out_dim)
+        mean_prediction, std_prediction = bnn.predict_proba(x, save_fig=True)
         assert isinstance(mean_prediction, torch.Tensor) and isinstance(
             std_prediction, torch.Tensor
         ), "Incorrect output"
+        correct_shape = torch.Size([x.shape[0], out_dim])
         assert (
-            len(mean_prediction.shape) == 1
-            and mean_prediction.shape[0] == out_dim
-            and len(std_prediction.shape) == 1
-            and std_prediction.shape[0] == out_dim
+            mean_prediction.shape == correct_shape
+            and std_prediction.shape == correct_shape
         ), "Incorrect dimension of the output"
+        predictions = bnn.predict(x)
+        assert isinstance(predictions, torch.Tensor), "Incorrect output"
+        assert predictions.shape == torch.Size([x.shape[0]])
 
 
 def test_explore_model() -> None:
