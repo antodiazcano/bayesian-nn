@@ -26,7 +26,7 @@ You can check the proof in this [link](https://stats.stackexchange.com/questions
 
 ## Functionalities
 
-One function is created to check the distribution of the model predictions given an input and another one  is created to visualize the $\mu$ and $\sigma$ values of the parameters of the model. They will serve as sanity checks (for example, we can see if the mean and std of the parameters are distributed approximately like the prior, a $N(0, 0.1)$ ):
+One function is created to check the distribution of the model predictions given an input and another one  is created to visualize the $\mu$ and $\sigma$ values of the parameters of the model. They will serve as sanity checks. For example, we can see if the mean and std of the parameters are distributed approximately like the prior, a $N(0, 0.1)$:
 
 <p align="center">
   <img src="images/histogram_predictions.png"/>
