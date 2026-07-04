@@ -1,58 +1,50 @@
-"""
-Script to build a Bayesian Neural Network (BNN).
-"""
+"""Script to build a Bayesian Neural Network (BNN)."""
 
-import torch
-from torch import nn
-import torch.nn.functional as F
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns  # type: ignore
+import seaborn as sns
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 
 class BayesianLinear(nn.Module):
-    """
-    Class to build a Bayesian Linear Layer.
-    """
+    """Class to build a Bayesian Linear Layer."""
 
-    def __init__(self, in_dim: int, out_dim: int) -> None:
-        """
-        Constructor of the class.
+    def __init__(self, in_dim: int, out_dim: int, scale: float = 0.1) -> None:
+        """Constructor of the class.
 
-        Parameters
-        ----------
-        in_dim  : Dimension of the input.
-        out_dim : Dimension of the output.
+        Args:
+            in_dim: Dimension of the input.
+            out_dim: Dimension of the output.
+            scale: Factor to scale of the weights.
         """
 
         super().__init__()
 
+        self.scale = scale
         # In and out dimensions
         self.in_dim = in_dim
         self.out_dim = out_dim
         # Mean and std of weights
-        self.w_mu = nn.Parameter(0.1 * torch.randn(out_dim, in_dim))
+        self.w_mu = nn.Parameter(scale * torch.randn(out_dim, in_dim))
         self.w_sigma = nn.Parameter(
-            torch.log(torch.exp(torch.tensor(0.1)) - 1)
-            + 0.1 * torch.randn(out_dim, in_dim)
+            torch.log(torch.exp(torch.tensor(scale)) - 1)
+            + scale * torch.randn(out_dim, in_dim)
         )
         # Mean and std of biases
-        self.b_mu = nn.Parameter(0.1 * torch.randn(out_dim))
+        self.b_mu = nn.Parameter(scale * torch.randn(out_dim))
         self.b_sigma = nn.Parameter(
-            torch.log(torch.exp(torch.tensor(0.1)) - 1) + 0.1 * torch.randn(out_dim)
+            torch.log(torch.exp(torch.tensor(scale)) - 1) + scale * torch.randn(out_dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
+        """Forward pass.
 
-        Parameters
-        ----------
-        x : Input tensor. Dimensions: [batch, self.in_dim].
+        Args:
+            x: Input tensor. Dimensions: [batch, self.in_dim].
 
-        Returns
-        -------
-        Output tensor. Dimensions: [batch, self.out_dim].
+        Returns:
+            Output tensor. Dimensions: [batch, self.out_dim].
         """
 
         # Reparametrization trick for backpropagation
@@ -67,9 +59,7 @@ class BayesianLinear(nn.Module):
 
 
 class BayesianNN(nn.Module):
-    """
-    Class to build a Bayesian Neural Network.
-    """
+    """Class to build a Bayesian Neural Network."""
 
     def __init__(
         self,
@@ -78,23 +68,38 @@ class BayesianNN(nn.Module):
         hidden_sizes: list[int] | None = None,
         p: float = 0.2,
     ) -> None:
-        """
-        Constructor of the class.
+        """Constructor of the class.
 
-        Parameters
-        ----------
-        in_dim       : Dimension of the input.
-        out_dim      : Dimension of the output.
-        hidden_sizes : Dimension of the hidden sizes.
-        p            : Probability of dropout.
+        Args:
+            in_dim: Dimension of the input.
+            out_dim: Dimension of the output.
+            hidden_sizes: Dimension of the hidden sizes.
+            p: Probability of dropout.
         """
 
         super().__init__()
 
-        if hidden_sizes is None:
-            hidden_sizes = [256, 128, 64]
-
         self.out_dim = out_dim
+        self.fc = self._get_fc(in_dim, out_dim, hidden_sizes, p)
+
+    @staticmethod
+    def _get_fc(
+        in_dim: int, out_dim: int, hidden_sizes: list[int] | None, p: float
+    ) -> nn.Sequential:
+        """Returns the fully connected network.
+
+        Args:
+            in_dim: Dimension of the input.
+            out_dim: Dimension of the output.
+            hidden_sizes: Dimension of the hidden sizes.
+            p: Probability of dropout.
+
+        Returns:
+            Fully connected network.
+        """
+
+        if hidden_sizes is None:
+            hidden_sizes = [128, 64]
 
         fc_layers: list[nn.Module] = []
         # First layer
@@ -107,96 +112,89 @@ class BayesianNN(nn.Module):
             fc_layers.append(nn.Dropout(p=p))
         # Last layer
         fc_layers.append(BayesianLinear(hidden_sizes[-1], out_dim))
-        self.fc = nn.Sequential(*fc_layers)
+
+        return nn.Sequential(*fc_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
+        """Forward pass.
 
-        Parameters
-        ----------
-        x : Input tensor. Dimensions: [batch, in_dim].
+        Args:
+            x: Input tensor. Dimensions: [batch, in_dim].
 
         Returns:
-        Output tensor. Dimensions: [batch, out_dim].
+            Output tensor. Dimensions: [batch, out_dim].
         """
 
         return self.fc(x)
 
+    @torch.no_grad()
     def predict_proba(
-        self, x: torch.Tensor, n_samples: int = 10, save_fig: bool = False
+        self, x: torch.Tensor, n_samples: int = 10, path: str = ""
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Obtains the mean and std of the predictions of the network for each class.
+        """Obtains the mean and std of the predictions of the network for each class.
 
-        Parameters
-        ----------
-        x         : Input tensor. Dimensions: [batch, in_dim].
-        n_samples : Number of predictions to generate.
-        save_fig  : True to save a figure of the distributions and False otherwise.
+        Args:
+            x: Input tensor. Dimensions: [batch, in_dim].
+            n_samples: Number of predictions to generate.
+            path: Path where the figure is saved. If not passed, it's not saved.
 
-        Returns
-        -------
-        Mean and std of the predictions. Dimensions: [batch, n_classes], [batch,
-        n_classes].
+        Returns:
+            Mean and std of the predictions. Dimensions: [batch, n_classes] both.
         """
 
         self.eval()
-        n_classes = self.fc[-1].out_dim
-        with torch.no_grad():
-            preds = torch.zeros(x.shape[0], n_samples, n_classes)
-            # Note that we have to do a loop instead of using parallelization in order
-            # for the weights of the network to be sampled differently.
-            for i in range(n_samples):
-                if self.out_dim == 1:
-                    preds[:, i, :] = F.sigmoid(self.forward(x))
-                else:
-                    preds[:, i, :] = F.softmax(self.forward(x), dim=-1)
+        n_classes = self.out_dim
+        preds = torch.zeros((x.shape[0], n_samples, n_classes))
 
-        if save_fig:
+        # Obtain predictions.
+        # Note that we have to do a loop instead of using parallelization in order
+        # for the weights of the network to be sampled differently.
+        for i in range(n_samples):
+            if self.out_dim == 1:
+                preds[:, i, :] = F.sigmoid(self(x))
+            else:
+                preds[:, i, :] = F.softmax(self(x), dim=-1)
+
             fig, axs = plt.subplots(1, 2, figsize=(16, 8))
 
-            for i in range(n_classes):
-                y_pred = preds[:, :, i].flatten()
-                if isinstance(axs, np.ndarray):  # to pass mypy
-                    label = "Class 1" if self.out_dim == 1 else f"Class {i}"
-                    axs[0].scatter([i] * len(y_pred), y_pred, alpha=0.1, label=label)
-                    sns.kdeplot(y_pred, ax=axs[1], label=f"Class {i}")
-
-            if isinstance(axs, np.ndarray):  # to pass mypy
-                axs[0].set_title("Distribution of the Predictions")
-                axs[0].set_xlabel("Class")
-                axs[0].set_ylabel("Probability")
-                axs[0].legend()
-                axs[1].set_title("Distribution of the Predictions")
-                axs[1].set_xlabel("Probability")
-                axs[1].set_ylabel("Density")
-                axs[1].legend()
-
-            fig.savefig("images/histogram_predictions.png")
+        # Plot/save the figure!
+        for i in range(n_classes):
+            y_pred = preds[:, :, i].flatten()
+            label = "Class 1" if self.out_dim == 1 else f"Class {i}"
+            axs[0].scatter([i] * len(y_pred), y_pred, alpha=0.1, label=label)
+            sns.kdeplot(y_pred, ax=axs[1], label=f"Class {i}")
+        axs[0].set_title("Distribution of the Predictions")
+        axs[0].set_xlabel("Class")
+        axs[0].set_ylabel("Probability")
+        axs[0].legend()
+        axs[1].set_title("Distribution of the Predictions")
+        axs[1].set_xlabel("Probability")
+        axs[1].set_ylabel("Density")
+        axs[1].legend()
+        if path:
+            fig.savefig(path)
             plt.close(fig)
 
         return torch.mean(preds, dim=1), torch.std(preds, dim=1)
 
     def predict(self, x: torch.Tensor, n_samples: int = 10) -> torch.Tensor:
-        """
-        Obtains the predictions of the network.
+        """Obtains the predictions of the network.
 
-        Parameters
-        ----------
-        x         : Input tensor. Dimensions: [batch, in_dim].
-        n_samples : Number of predictions to generate.
+        Args:
+            x: Input tensor. Dimensions: [batch, in_dim].
+            n_samples: Number of predictions to generate.
 
-        Returns
-        -------
-        Prediction. Dimensions: [batch].
+        Returns:
+            Prediction. Dimensions: [batch].
         """
 
         return torch.argmax(self.predict_proba(x, n_samples)[0], dim=1)
 
-    def explore_weights(self) -> None:
-        """
-        Plots a histogram of mu and sigma of the weights and biases of the model.
+    def explore_weights(self, path: str = "") -> None:
+        """Plots a histogram of mu and sigma of the weights and biases of the model.
+
+        Args:
+            path: Path where the figure is saved. If not passed, it's not saved.
         """
 
         bayesian_layers = [
@@ -214,18 +212,18 @@ class BayesianNN(nn.Module):
                 [[layer.w_mu, layer.w_sigma], [layer.b_mu, layer.b_sigma]]
             ):
                 title = f"Weights for layer {i}" if j == 0 else f"Bias for layer {i}"
-                if isinstance(axs, np.ndarray):  # to pass mypy
-                    axs[i, 2 * j].hist(mu.flatten().detach().numpy(), bins=20)
-                    axs[i, 2 * j].set_title(title)
-                    axs[i, 2 * j].set_xlabel(r"$\mu$")
-                    axs[i, 2 * j].set_ylabel("Frequency")
-                    axs[i, 2 * j + 1].hist(
-                        torch.log1p(torch.exp(sigma.flatten())).detach().numpy(),
-                        bins=20,
-                    )
-                    axs[i, 2 * j + 1].set_title(title)
-                    axs[i, 2 * j + 1].set_xlabel(r"$\sigma$")
-                    axs[i, 2 * j + 1].set_ylabel("Frequency")
+                axs[i, 2 * j].hist(mu.flatten().detach().numpy(), bins=20)
+                axs[i, 2 * j].set_title(title)
+                axs[i, 2 * j].set_xlabel(r"$\mu$")
+                axs[i, 2 * j].set_ylabel("Frequency")
+                axs[i, 2 * j + 1].hist(
+                    torch.log1p(torch.exp(sigma.flatten())).detach().numpy(),
+                    bins=20,
+                )
+                axs[i, 2 * j + 1].set_title(title)
+                axs[i, 2 * j + 1].set_xlabel(r"$\sigma$")
+                axs[i, 2 * j + 1].set_ylabel("Frequency")
 
-        fig.savefig("images/model_mu_sigma.png")
-        plt.close(fig)
+        if path:
+            fig.savefig(path)
+            plt.close(fig)
