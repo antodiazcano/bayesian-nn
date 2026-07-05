@@ -52,8 +52,8 @@ class BayesianLinear(nn.Module):
         b_epsilon = torch.randn_like(self.b_mu)
 
         # Sample from a normal distribution
-        weight = self.w_mu + torch.log1p(torch.exp(self.w_sigma)) * w_epsilon
-        bias = self.b_mu + torch.log1p(torch.exp(self.b_sigma)) * b_epsilon
+        weight = self.w_mu + torch.log(1 + torch.exp(self.w_sigma)) * w_epsilon
+        bias = self.b_mu + torch.log(1 + torch.exp(self.b_sigma)) * b_epsilon
 
         return torch.matmul(x, weight.t()) + bias
 
@@ -144,7 +144,7 @@ class BayesianNN(nn.Module):
 
         self.eval()
         n_classes = self.out_dim
-        preds = torch.zeros((x.shape[0], n_samples, n_classes))
+        preds = torch.zeros((x.shape[0], n_samples, n_classes), device=x.device)
 
         # Obtain predictions.
         # Note that we have to do a loop instead of using parallelization in order
@@ -155,29 +155,29 @@ class BayesianNN(nn.Module):
             else:
                 preds[:, i, :] = F.softmax(self(x), dim=-1)
 
-            fig, axs = plt.subplots(1, 2, figsize=(16, 8))
-
-        # Plot/save the figure!
-        for i in range(n_classes):
-            y_pred = preds[:, :, i].flatten()
-            label = "Class 1" if self.out_dim == 1 else f"Class {i}"
-            axs[0].scatter([i] * len(y_pred), y_pred, alpha=0.1, label=label)
-            sns.kdeplot(y_pred, ax=axs[1], label=f"Class {i}")
-        axs[0].set_title("Distribution of the Predictions")
-        axs[0].set_xlabel("Class")
-        axs[0].set_ylabel("Probability")
-        axs[0].legend()
-        axs[1].set_title("Distribution of the Predictions")
-        axs[1].set_xlabel("Probability")
-        axs[1].set_ylabel("Density")
-        axs[1].legend()
+        # Plot/save the figure (use only first sample if batch > 1)
         if path:
+            plot_preds = preds[:1] if preds.shape[0] > 1 else preds
+            fig, axs = plt.subplots(1, 2, figsize=(16, 8))
+            for i in range(n_classes):
+                y_pred = plot_preds[:, :, i].flatten().cpu()
+                label = "Class 1" if self.out_dim == 1 else f"Class {i}"
+                axs[0].scatter([i] * len(y_pred), y_pred, alpha=0.75, label=label)
+                sns.kdeplot(y_pred, ax=axs[1], label=f"Class {i}")
+            axs[0].set_title("Distribution of the Predictions")
+            axs[0].set_xlabel("Class")
+            axs[0].set_ylabel("Probability")
+            axs[0].legend()
+            axs[1].set_title("Distribution of the Predictions")
+            axs[1].set_xlabel("Probability")
+            axs[1].set_ylabel("Density")
+            axs[1].legend()
             fig.savefig(path)
             plt.close(fig)
 
         return torch.mean(preds, dim=1), torch.std(preds, dim=1)
 
-    def predict(self, x: torch.Tensor, n_samples: int = 10) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, n_samples: int = 25) -> torch.Tensor:
         """Obtains the predictions of the network.
 
         Args:
@@ -212,12 +212,12 @@ class BayesianNN(nn.Module):
                 [[layer.w_mu, layer.w_sigma], [layer.b_mu, layer.b_sigma]]
             ):
                 title = f"Weights for layer {i}" if j == 0 else f"Bias for layer {i}"
-                axs[i, 2 * j].hist(mu.flatten().detach().numpy(), bins=20)
+                axs[i, 2 * j].hist(mu.flatten().cpu().detach().numpy(), bins=20)
                 axs[i, 2 * j].set_title(title)
                 axs[i, 2 * j].set_xlabel(r"$\mu$")
                 axs[i, 2 * j].set_ylabel("Frequency")
                 axs[i, 2 * j + 1].hist(
-                    torch.log1p(torch.exp(sigma.flatten())).detach().numpy(),
+                    torch.log(1 + torch.exp(sigma.flatten())).cpu().detach().numpy(),
                     bins=20,
                 )
                 axs[i, 2 * j + 1].set_title(title)

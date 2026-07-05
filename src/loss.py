@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from src.bnn import BayesianLinear
+from src.config import config
 
 
 class BayesianLoss(nn.Module):
@@ -46,7 +47,7 @@ class BayesianLoss(nn.Module):
             KL loss.
         """
 
-        kl_loss = torch.tensor(0.0)
+        kl_loss = torch.tensor(0.0).to(config.training.device)
 
         for layer in bayesian_layers:
             for mu, sigma in ([layer.w_mu, layer.w_sigma], [layer.b_mu, layer.b_sigma]):

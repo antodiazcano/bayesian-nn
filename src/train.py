@@ -50,7 +50,7 @@ class Trainer:
             n_samples: Number of batches used.
         """
 
-        for value, loss_type in zip(losses_dict.values(), losses_dict.keys()):
+        for loss_type, value in losses_dict.items():
             self.metrics[mode][loss_type].append(value / n_samples)
 
     def _train_one_epoch(self, train_loader: DataLoader) -> None:
@@ -61,7 +61,7 @@ class Trainer:
         """
 
         self.model.train()
-        losses_dict = {"cross_entropy": 0.0, "kl": 0.0, "total": 0.0}
+        losses_dict = {"cross_entropy": 0.0, "kl": 0.0, "loss": 0.0}
 
         for inputs, labels in train_loader:
             # Forward
@@ -85,6 +85,7 @@ class Trainer:
 
         self._append_losses(losses_dict, "train", len(train_loader))
 
+    @torch.no_grad()
     def _valid_one_epoch(self, val_loader: DataLoader) -> None:
         """Makes the validation of an epoch.
 
@@ -93,7 +94,7 @@ class Trainer:
         """
 
         self.model.eval()
-        losses_dict = {"cross_entropy": 0.0, "kl": 0.0, "total": 0.0}
+        losses_dict = {"cross_entropy": 0.0, "kl": 0.0, "loss": 0.0}
 
         for inputs, labels in val_loader:
             # Forward
