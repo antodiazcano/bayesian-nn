@@ -26,7 +26,7 @@ class BayesianLinear(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         # Mean and std of weights
-        self.w_mu = nn.Parameter(scale * torch.randn(out_dim, in_dim))
+        self.w_mu = nn.Parameter(scale * torch.randn(out_dim, in_dim) / in_dim**0.5)
         self.w_sigma = nn.Parameter(
             torch.log(torch.exp(torch.tensor(scale)) - 1)
             + scale * torch.randn(out_dim, in_dim)

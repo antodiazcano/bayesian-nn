@@ -10,6 +10,7 @@ dependencies = [
     "complexipy>=5.4.1",
     "flake8>=7.3.0",
     "flake8-pyproject>=1.2.4",
+    "ipykernel>=7.3.0",
     "isort>=8.0.1",
     "matplotlib>=3.11.0",
     "mypy>=2.1.0",

@@ -10,9 +10,9 @@ BNNs will typically be more **flexible** and capture better **uncertainty**, but
 
 ## Model parameters
 
-We will assume parameters are distributed like a $N(0, 0.1)$ and choose that as a **prior**. The mean value, $\mu$, will be the same, but for the standard deviation $\sigma$, we will use $\sigma'=\log(1+\exp(\sigma))$ to allow negative values for $\sigma$. We will initialize $\mu\sim N(0,0.1)$ and $\sigma\sim N(\log(\exp(0.1)-1), 0.1)$. Note that this last initialization is because
-
-$$\log(1+\exp(\sigma))=0.1 \implies \sigma=\log(\exp(0.1)-1).$$
+<p align="center">
+  <img src="images/parameters.png"/>
+</p>
 
 We will also use the **reparametrization trick** to avoid problems in the backward pass. Just to remember, $N(\mu(x), \sigma(x))$ is the same as $\mu(x)+\varepsilon\cdot\sigma(x)$ when $\varepsilon\sim N(0, 1)$.
 
@@ -29,12 +29,12 @@ You can check the proof in this [link](https://stats.stackexchange.com/questions
 One function is created to check the distribution of the model predictions given an input and another one  is created to visualize the $\mu$ and $\sigma$ values of the parameters of the model. They will serve as sanity checks. For example, we can see if the mean and std of the parameters are distributed approximately like the prior, a $N(0, 0.1)$:
 
 <p align="center">
-  <img src="images/histogram_predictions.png"/>
-  <img src="images/model_mu_sigma.png"/>
+  <img src="images/predictions.png"/>
+  <img src="images/weights.png"/>
 </p>
 
 Finally, there is also a function to see how **Bayesian Loss** (which takes into account KL divergence and prediction loss) evolves during training.
 
 <p align="center">
-  <img src="images/train.png"/>
+  <img src="images/train_evolution.png"/>
 </p>
